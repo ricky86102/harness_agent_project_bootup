@@ -51,6 +51,14 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
 
 ---
 
+## Repository Files
+
+- **[`bootstrap_harness.py`](bootstrap_harness.py)**: The single-file executable generator that sets up the entire architecture in any new repository.
+- **[`update_prompt.txt`](update_prompt.txt)**: A dedicated AI prompt used to reverse-distill newly evolved rules from existing projects back into this toolkit.
+- **[`README.md`](README.md)**: Architectural documentation, operational philosophy, and usage instructions.
+
+---
+
 ## Generated Directory Blueprint
 
 Running `bootstrap_harness.py` creates the following battle-tested repository structure:
@@ -115,6 +123,21 @@ The script will:
 You can now immediately instruct Codex, Cursor, Claude, or Copilot:
 
 > *"I have initialized the repository with AGENTS.md and ARCHITECTURE.md. Please read AGENTS.md, initialize the active plan in docs/exec-plans/active/, and begin implementing the core domain model."*
+
+---
+
+## Continuous Evolution: Syncing Architecture Updates
+
+As you develop real-world software, your architectural invariants, boundaries, and verification tools will naturally evolve. To keep this starter kit synchronized without manual editing:
+
+1. Open [`update_prompt.txt`](update_prompt.txt).
+2. Copy its contents into an AI session (Cursor, Codex, Claude Code, or Antigravity) inside your evolving project.
+3. The AI agent will:
+   - Perform a read-only analysis of your latest rules.
+   - De-couple domain business logic from universal architectural patterns.
+   - Update `bootstrap_harness.py` and `README.md`.
+   - Run end-to-end tests in an isolated sandbox.
+   - Commit and push the updates directly back to this repository.
 
 ---
 
