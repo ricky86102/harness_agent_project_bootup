@@ -356,9 +356,32 @@ class PlanningRulesTest(unittest.TestCase):
         errors = docs.check_planning(self.texts(**{docs.ROADMAP: roadmap}))
         self.assertTrue(any("must link to the active plan" in e for e in errors))
 
-    def test_nested_files_are_not_active_plans(self):
+    def test_nested_files_count_as_active_plans(self):
         self.assertEqual(docs.active_plans({docs.ACTIVE_DIR + "sub/x.md": "", docs.ACTIVE_DIR + "a.md": ""}),
-                         [docs.ACTIVE_DIR + "a.md"])
+                         [docs.ACTIVE_DIR + "a.md", docs.ACTIVE_DIR + "sub/x.md"])
+
+    def test_nested_plans_cannot_bypass_limit(self):
+        texts = {docs.ROADMAP: self.ROADMAP, docs.ACTIVE_DIR + "a/p.md": self.PLAN, docs.ACTIVE_DIR + "b/p.md": self.PLAN}
+        errors = docs.check_planning(texts)
+        self.assertTrue(any("at most one active plan" in e for e in errors))
+
+    def test_phase_only_in_records_fails(self):
+        roadmap = ("# Roadmap\\n\\n## Current State\\n\\n- Phase 1: done\\n\\n## Records\\n\\n"
+                   "### 2026-09-28 Old\\n\\n- Phase 2: active, [plan](active/p2.md)\\n")
+        errors = docs.check_planning(self.texts(**{docs.ROADMAP: roadmap}))
+        self.assertTrue(any("must link to the active plan" in e for e in errors))
+        self.assertTrue(any("Phase 2 is not listed" in e for e in errors))
+
+    def test_roadmap_line_only_in_plan_records_fails(self):
+        plan = self.PLAN.replace("Roadmap: Phase 2\\n", "") + "\\n### 2026-09-28 Old\\n\\nRoadmap: Phase 2\\n"
+        errors = docs.check_planning(self.texts(**{docs.ACTIVE_DIR + "p2.md": plan}))
+        self.assertTrue(any('Roadmap: Phase <N>' in e for e in errors))
+
+    def test_phase_line_must_link_plan(self):
+        roadmap = self.ROADMAP.replace("- Phase 2: active, [plan](active/p2.md)",
+                                       "- Phase 1: done, [plan](active/p2.md)\\n- Phase 2: active")
+        errors = docs.check_planning(self.texts(**{docs.ROADMAP: roadmap}))
+        self.assertTrue(any("Phase 2 line must link" in e for e in errors))
 
 if __name__ == '__main__':
     unittest.main()
@@ -562,24 +585,40 @@ def check_snapshot(snapshot, allow_rotation=False):
     return errors
 
 def active_plans(texts):
-    return sorted(k for k in texts if k.startswith(ACTIVE_DIR) and k.endswith('.md') and '/' not in k[len(ACTIVE_DIR):])
+    """Every Markdown file under active/, nested or not, counts as an active plan."""
+    return sorted(k for k in texts if k.startswith(ACTIVE_DIR) and k.endswith('.md'))
+
+def current_state(name, text):
+    """Current State section only, so Records history cannot satisfy planning checks."""
+    try:
+        return parse_document(name, text)[0]
+    except ValueError:
+        return text  # structure errors are reported by check_snapshot
+
+def links_in(source, text):
+    return {link_destination(source, target) for target in re.findall(r'\]\(([^)]+)\)', text)}
 
 def check_planning(texts):
     """Roadmap is the single project plan; at most one active plan, tied to a roadmap phase."""
     if ROADMAP not in texts:
         return [f'{ROADMAP}: required project roadmap missing.']
-    errors, plans, roadmap = [], active_plans(texts), texts[ROADMAP]
+    errors, plans, roadmap = [], active_plans(texts), current_state(ROADMAP, texts[ROADMAP])
     if len(plans) > 1:
         errors.append(f'{ACTIVE_DIR}: at most one active plan allowed (found {len(plans)}: {", ".join(plans)}).')
-    linked = {link_destination(ROADMAP, target) for target in re.findall(r'\]\(([^)]+)\)', roadmap)}
+    linked = links_in(ROADMAP, roadmap)
     for plan in plans:
-        match = re.search(r'^Roadmap:\s*Phase\s+(\w+)\.?\s*$', texts[plan], re.M)
-        if not match:
-            errors.append(f'{plan}: opening line must read "Roadmap: Phase <N>".')
-        elif not re.search(rf'\bPhase {re.escape(match[1])}\b', roadmap):
-            errors.append(f'{plan}: Phase {match[1]} is not listed in {ROADMAP}.')
+        opening = '\n'.join(current_state(plan, texts[plan]).splitlines()[:8])
+        match = re.search(r'^Roadmap:\s*Phase\s+(\w+)\.?\s*$', opening, re.M)
         if plan not in linked:
             errors.append(f'{ROADMAP}: must link to the active plan {plan}.')
+        if not match:
+            errors.append(f'{plan}: opening line must read "Roadmap: Phase <N>".')
+            continue
+        phase_lines = [line for line in roadmap.splitlines() if re.search(rf'\bPhase {re.escape(match[1])}\b', line)]
+        if not phase_lines:
+            errors.append(f'{plan}: Phase {match[1]} is not listed in {ROADMAP} Current State.')
+        elif plan in linked and not any(plan in links_in(ROADMAP, line) for line in phase_lines):
+            errors.append(f'{ROADMAP}: the Phase {match[1]} line must link to the active plan {plan}.')
     return errors
 
 def check_docs(root: Path, staged=False) -> list[str]:
@@ -717,6 +756,7 @@ def bootstrap():
         print(f"\n[SUCCESS] Congratulations! {args.project_name} successfully initialized with Universal Agent Harness!")
     else:
         print("\n[WARN] Initial validation failed. Please check the logs above.")
+        sys.exit(res.returncode)
 
 if __name__ == "__main__":
     bootstrap()
