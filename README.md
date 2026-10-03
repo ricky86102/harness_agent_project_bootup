@@ -25,11 +25,19 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
    - Every document adheres to a normalized two-section format: `# Title` $\rightarrow$ `## Current State` (max 2,000 chars, rewritten in-place) $\rightarrow$ `## Records` (max 5 entries).
    - **Automated Historical Rotation**: When a document accumulates more than 5 logs, `python tools/check_docs.py --fix` automatically rotates older entries into `docs/archive/` while rewriting relative markdown links. The agent's working context stays permanently bounded and immune to token bloat.
 
-2. **Git Index-Level Mechanical Enforcement (`--staged` Pre-Commit Guard)**:
+2. **Strategic Roadmap & Active Plan Duality (`docs/exec-plans/`)**:
+   - Solves task sprawl, context pollution, and architectural drift by strictly separating long-term product vision from immediate tactical execution:
+     - **Single Strategic Truth (`docs/exec-plans/roadmap.md`)**: The only project-wide plan defining goals, ordered phases with status, and approved direction. Only the user approves modifications to it.
+     - **Single Active Plan Invariant (`docs/exec-plans/active/`)**: Holds **at most one** active plan corresponding to the current roadmap phase. The plan opens with `Status:`, `Next Step:`, `Blockers:`, and `Roadmap: Phase <N>`, detailing tasks, acceptance criteria (commands and thresholds), and attempt budget.
+     - **Atomic Single-Commit Phase Handoff**: Once a phase passes acceptance, verification evidence is recorded, the plan moves to `completed/`, the roadmap phase status is updated, and the next phase is scaffolded in `active/`—all committed together.
+     - **Automated Planning Enforcement**: `tools/check_docs.py` mechanically checks for the roadmap, enforces the single active plan limit, verifies the `Roadmap: Phase <N>` binding, and guarantees that the roadmap links to the active plan.
+     - **Clear Precedence Hierarchy**: Explicit User Instruction > Roadmap > Active Plan.
+
+3. **Git Index-Level Mechanical Enforcement (`--staged` Pre-Commit Guard)**:
    - Rules in text are frequently ignored by LLMs; automated gates are not.
    - The `.githooks/pre-commit` hook does not merely inspect the dirty working tree; it inspects Git index blobs directly (`git cat-file --batch`), preventing agents from bypassing checks with unstaged fixes.
 
-3. **Universal Multi-Agent Alignment (Vendor-Agnostic Single Source of Truth)**:
+4. **Universal Multi-Agent Alignment (Vendor-Agnostic Single Source of Truth)**:
    - `AGENTS.md` is the universal core configuration.
    - Thin pointers ensure compatibility across all leading agent platforms:
      - **OpenAI Codex / Generic Agent**: Native reading of `AGENTS.md`.
@@ -38,15 +46,15 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
      - **Claude Code**: `CLAUDE.md` (`@AGENTS.md`) + `.claude/settings.json` PreToolUse hook.
      - **Antigravity / Gemini**: Direct ingestion of `AGENTS.md`.
 
-4. **Autonomous Mode & `/goal` Guardrails**:
+5. **Autonomous Mode & `/goal` Guardrails**:
    - Solves the common failure modes of long-running, unattended agent loops (premature halting, infinite loops, moving goalposts, or destructive mutations).
-   - Rules include: continuous execution, exploration budget (max 3 approaches), pre-registration of intent in `docs/exec-plans/active/`, hard permission gates (cannot alter core boundaries or delete history), and standardized turn heartbeats (`LOOP: attempt <k>/<N> | <state> | <metric>`).
+   - Rules include: continuous execution, exploration budget (max 3 approaches), pre-registration of intent in the active plan before substantive code changes, hard permission gates (cannot alter the goal, the roadmap, core boundaries, or delete history), and standardized turn heartbeats (`LOOP: attempt <k>/<N> | <state> | <metric>`).
 
-5. **Executable Architectural Boundary Checking (`check_architecture.py`)**:
+6. **Executable Architectural Boundary Checking (`check_architecture.py`)**:
    - Automatically scans `src/core/` for unauthorized external I/O, UI, OS, or networking dependencies.
    - Ensures pure business logic remains 100% deterministic and decoupled from presentation.
 
-6. **Zero External Dependencies**:
+7. **Zero External Dependencies**:
    - Built entirely on Python 3 standard library (`re`, `pathlib`, `hashlib`, `subprocess`, `argparse`, `tempfile`). No `pip install` required.
 
 ---
@@ -65,7 +73,7 @@ Running `bootstrap_harness.py` creates the following battle-tested repository st
 
 ```text
 my-project/
-├── AGENTS.md                  # Unified AI entrypoint (working rules, doc laws, commands)
+├── AGENTS.md                  # Unified AI entrypoint (working rules, planning laws, doc laws, commands)
 ├── ARCHITECTURE.md            # Dependency direction, ownership model, invariants
 ├── CLAUDE.md                  # Points to @AGENTS.md
 ├── .cursorrules               # Points to AGENTS.md for Cursor / Codex
@@ -76,17 +84,18 @@ my-project/
 ├── .githooks/
 │   └── pre-commit             # Git-level boundary & documentation verification
 ├── tools/
-│   ├── check_docs.py          # Enforces doc budget & auto-rotates old logs to archive
+│   ├── check_docs.py          # Enforces doc budget, planning rules & auto-rotates old logs
 │   ├── check_architecture.py  # Static AST/Regex checker for Core purity & UI boundaries
-│   ├── test_check_docs.py     # Regression tests for documentation guard
+│   ├── test_check_docs.py     # Regression tests for documentation guard & planning rules
 │   └── verify.py              # Single pipeline command to run all validations
 ├── docs/
 │   ├── README.md              # Document index table (consult on-demand)
 │   ├── documentation-policy.md# Two-section structure & rotation rules
 │   ├── exec-plans/
-│   │   ├── README.md          # Task status board
-│   │   ├── active/            # Ongoing task (requires Status / Next Step / Blockers)
-│   │   ├── completed/         # Delivered tasks
+│   │   ├── README.md          # Task status board & planning rules overview
+│   │   ├── roadmap.md         # Single project-wide strategic plan (phases & approved direction)
+│   │   ├── active/            # At most one active plan (Status / Next Step / Blockers / Roadmap: Phase <N>)
+│   │   ├── completed/         # Delivered phases with verification evidence
 │   │   └── paused/            # Postponed tasks (do not resume without approval)
 │   └── archive/               # Historical records rotated out by check_docs --fix
 ├── src/
@@ -122,7 +131,7 @@ The script will:
 
 You can now immediately instruct Codex, Cursor, Claude, or Copilot:
 
-> *"I have initialized the repository with AGENTS.md and ARCHITECTURE.md. Please read AGENTS.md, initialize the active plan in docs/exec-plans/active/, and begin implementing the core domain model."*
+> *"I have initialized the repository with AGENTS.md and ARCHITECTURE.md. Please read AGENTS.md, review the roadmap in docs/exec-plans/roadmap.md, initialize the active plan in docs/exec-plans/active/ for the current phase, and begin implementation."*
 
 ---
 
@@ -151,7 +160,7 @@ As you develop real-world software, your architectural invariants, boundaries, a
   ```bash
   python tools/check_architecture.py
   ```
-- **Check documentation budget**:
+- **Check documentation budget & planning invariants**:
   ```bash
   python tools/check_docs.py
   ```

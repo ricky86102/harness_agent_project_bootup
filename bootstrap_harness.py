@@ -28,7 +28,7 @@ FILES = {
 
 ## Required Reading
 
-Read ONLY this file, [Architecture](ARCHITECTURE.md), and the active plan in `docs/exec-plans/active/` related to your task. If there is no active plan, proceed based on user instructions. Consult the [Index](docs/README.md) on demand; NEVER load documents in bulk.
+Read ONLY this file, [Architecture](ARCHITECTURE.md), and the active plan in `docs/exec-plans/active/`. Consult the [Roadmap](docs/exec-plans/roadmap.md) and the [Index](docs/README.md) on demand; NEVER load documents in bulk.
 
 ## Working Rules
 
@@ -37,43 +37,43 @@ Read ONLY this file, [Architecture](ARCHITECTURE.md), and the active plan in `do
 - Strict architectural boundaries: `src/core` is pure business logic and must NOT depend on platform APIs, UI, networking, or external I/O.
 - UI must use responsive layout containers; NEVER hardcode screen positions or offsets. Presentation only projects state snapshots; animations/rendering must NOT trigger gameplay or state side-effects.
 - Decisions, constraints, and evidence are preserved in the repository. Unverified features must never be marked as completed.
-- Move finished plans to `completed/`; user-paused plans to `paused/`. Active plans must begin with Status, Next Step, Blockers.
-- Total required reading (AGENTS + ARCHITECTURE + active plan) must NOT exceed 10,000 characters.
+
+## Planning
+
+- The [Roadmap](docs/exec-plans/roadmap.md) is the only project-wide plan: goal, ordered phases with status, approved product direction. Only the user approves changes to it.
+- `docs/exec-plans/active/` holds at most one plan: the current roadmap phase, detailed enough for `/goal` to run it unattended. It opens with `Status:`, `Next Step:`, `Blockers:`, `Roadmap: Phase <N>`, then tasks, acceptance criteria (commands and thresholds) and the attempt budget. Long specs go in linked design docs; tasks and acceptance stay in the plan.
+- Phase handoff, in one commit: verify acceptance; move the plan with its evidence to `completed/`; update the phase status in the roadmap; write the next phase in full into `active/`, or `Status: awaiting user` with the open decisions if its direction is not approved.
+- Precedence: explicit user instruction > roadmap > active plan. If the plan and the roadmap disagree, stop and ask.
+- User-paused plans go to `paused/`; never resume them without authorization.
 
 ## Autonomous Mode (/goal, unattended tasks, batch runs)
 
-When operating in autonomous/unattended mode, under `/goal`, or executing multi-step goals without continuous human-in-the-loop approval:
+Under `/goal` or any multi-step goal without continuous human approval:
 
-1. **Continuous Execution**: Do not halt to ask routine "what next" questions. Proactively plan and execute subsequent steps toward the objective.
-2. **Exploration Budget**: Budget a maximum of 3 distinct approaches/iterations unless explicitly specified. Stop and report if all 3 attempts fail.
-3. **Pre-Registration**: Document each approach and its intended acceptance criteria in `docs/exec-plans/active/` before making substantive code changes.
-4. **Hard Permission Gates**: You MUST halt and ask the user before:
-   - Modifying the goal itself or weakening acceptance criteria/test assertions.
+1. **Continuous Execution**: Do not halt for routine "what next" questions; keep executing toward the objective.
+2. **Exploration Budget**: At most 3 distinct approaches/iterations unless specified. Stop and report if all 3 fail.
+3. **Pre-Registration**: Record each approach and its acceptance criteria in the active plan before substantive code changes.
+4. **Hard Permission Gates**: Halt and ask the user before:
+   - Modifying the goal, the roadmap, or weakening acceptance criteria/test assertions.
    - Modifying core architectural invariants, schemas, or dependency rules in `ARCHITECTURE.md`.
    - Deleting past test logs, metrics, or archival evidence.
    - Exceeding the budgeted iteration limit.
-5. **Turn Heartbeat**: Conclude every turn with a standardized status line:
-   `LOOP: attempt <k>/<N> | <current_state> | <verification_metric_or_blocker>`
+5. **Turn Heartbeat**: End every turn with `LOOP: attempt <k>/<N> | <current_state> | <verification_metric_or_blocker>`
 
 ## Documentation Laws
 
 - In `docs/` (excluding `archive/`), each Markdown file has exactly one title, `## Current State`, and `## Records`. Use level 3+ headings for sub-sections.
-- Current State: maximum 2,000 characters, state current facts only, rewrite in-place. Remove superseded facts; do not accumulate "superseded by" statements. Single source of truth.
-- Records: format as `### YYYY-MM-DD Title`, newest first, at most 5 entries. Run `python tools/check_docs.py --fix` to rotate older entries to `docs/archive/`.
-- AGENTS.md <= 4,000 chars, ARCHITECTURE.md <= 6,000 chars.
-- Must pass `python tools/check_docs.py` before commit. The pre-commit hook checks the Git staged index; re-stage files after fixing.
+- Current State: maximum 2,000 characters, current facts only, rewritten in place. Remove superseded facts. Single source of truth.
+- Records: `### YYYY-MM-DD Title`, newest first, at most 5 entries. `--fix` rotates older entries to `docs/archive/`.
+- AGENTS.md <= 4,000 chars, ARCHITECTURE.md <= 6,000 chars; required reading (AGENTS + ARCHITECTURE + active plan) <= 10,000 chars.
+- `python tools/check_docs.py` must pass before commit; it also enforces the Planning rules. The pre-commit hook checks the staged index; re-stage after fixing.
 - Run `git config --local core.hooksPath .githooks` on every fresh clone.
-
-## Current State
-
-- Project initialized; multi-agent governance and architectural guardrails in place.
-- No active tasks; awaiting next instructions from user.
 
 ## Commands
 
 - Full verification: `python tools/verify.py`
 - Architecture check: `python tools/check_architecture.py`
-- Documentation check: `python tools/check_docs.py` (use `--fix` to rotate old records)
+- Documentation check: `python tools/check_docs.py` (`--fix` rotates old records)
 """,
 
     "ARCHITECTURE.md": """# Architecture and Invariants
@@ -162,7 +162,8 @@ Consult on-demand; do not load documents in bulk.
 
 | Category | Entry Point |
 | --- | --- |
-| Plans & Roadmap | [Plan Index](exec-plans/README.md) |
+| Roadmap (project plan) | [Roadmap](exec-plans/roadmap.md) |
+| Plans | [Plan Index](exec-plans/README.md) |
 | Documentation Policy | [Documentation Policy](documentation-policy.md) |
 | Test Responsibilities | [Test Responsibilities](../tests/README.md) |
 
@@ -207,15 +208,31 @@ git config --local core.hooksPath .githooks
 
 ## Current State
 
-- `active/`: Holds the single active task currently in progress. Must open with "Status:", "Next Step:", "Blockers:".
-- `completed/`: Finished and verified tasks.
-- `paused/`: Explicitly postponed by user; do NOT resume without authorization.
+- [Roadmap](roadmap.md): the only project-wide plan (goal, ordered phases, approved direction).
+- `active/`: at most one plan, the current roadmap phase. Opens with `Status:`, `Next Step:`, `Blockers:`, `Roadmap: Phase <N>`; holds tasks, acceptance criteria and budget.
+- `completed/`: finished phases with their evidence.
+- `paused/`: explicitly postponed by the user; never resume without authorization.
+- Rules live in [AGENTS](../../AGENTS.md) (Planning); `tools/check_docs.py` enforces them.
 
-### Plan Overview
+## Records
 
-| Plan | Status | Notes |
-| --- | --- | --- |
-| Bootstrap | completed | Initial architectural scaffold delivered |
+""",
+
+    "docs/exec-plans/roadmap.md": """# Project Roadmap
+
+## Current State
+
+Goal: Project architecture bootstrap and roadmap definition.
+
+### Phases
+
+1. Phase 1 Foundation: complete. Initial harness scaffold and governance established.
+2. Phase 2 Core Implementation: pending. Define scope and acceptance criteria before activating.
+
+### Approved Direction
+
+- Decisions and architectural boundaries defined in [Architecture](../../ARCHITECTURE.md).
+- Planning governance defined in [AGENTS](../../AGENTS.md).
 
 ## Records
 
@@ -301,6 +318,48 @@ class DocsRegressionTest(unittest.TestCase):
         self.assertEqual(state, "Fact.")
         self.assertEqual(len(entries), 1)
 
+class PlanningRulesTest(unittest.TestCase):
+    ROADMAP = "# Roadmap\\n\\n## Current State\\n\\n- Phase 2: active, [plan](active/p2.md)\\n\\n## Records\\n"
+    PLAN = "# P2\\n\\n## Current State\\n\\nStatus: x\\nNext Step: y\\nBlockers: none\\nRoadmap: Phase 2\\n\\n## Records\\n"
+
+    def texts(self, **extra):
+        texts = {docs.ROADMAP: self.ROADMAP, docs.ACTIVE_DIR + "p2.md": self.PLAN}
+        texts.update(extra)
+        return texts
+
+    def test_valid_plan_passes(self):
+        self.assertEqual(docs.check_planning(self.texts()), [])
+
+    def test_no_active_plan_is_allowed(self):
+        self.assertEqual(docs.check_planning({docs.ROADMAP: "# R\\n\\n## Current State\\n\\n- Phase 1\\n\\n## Records\\n"}), [])
+
+    def test_missing_roadmap(self):
+        errors = docs.check_planning({docs.ACTIVE_DIR + "p2.md": self.PLAN})
+        self.assertIn("roadmap missing", errors[0])
+
+    def test_two_active_plans(self):
+        errors = docs.check_planning(self.texts(**{docs.ACTIVE_DIR + "p3.md": self.PLAN}))
+        self.assertTrue(any("at most one active plan" in e for e in errors))
+
+    def test_missing_roadmap_line(self):
+        plan = self.PLAN.replace("Roadmap: Phase 2\\n", "")
+        errors = docs.check_planning(self.texts(**{docs.ACTIVE_DIR + "p2.md": plan}))
+        self.assertTrue(any('Roadmap: Phase <N>' in e for e in errors))
+
+    def test_phase_not_in_roadmap(self):
+        plan = self.PLAN.replace("Phase 2", "Phase 7")
+        errors = docs.check_planning(self.texts(**{docs.ACTIVE_DIR + "p2.md": plan}))
+        self.assertTrue(any("Phase 7 is not listed" in e for e in errors))
+
+    def test_roadmap_must_link_active_plan(self):
+        roadmap = self.ROADMAP.replace("[plan](active/p2.md)", "plan")
+        errors = docs.check_planning(self.texts(**{docs.ROADMAP: roadmap}))
+        self.assertTrue(any("must link to the active plan" in e for e in errors))
+
+    def test_nested_files_are_not_active_plans(self):
+        self.assertEqual(docs.active_plans({docs.ACTIVE_DIR + "sub/x.md": "", docs.ACTIVE_DIR + "a.md": ""}),
+                         [docs.ACTIVE_DIR + "a.md"])
+
 if __name__ == '__main__':
     unittest.main()
 """,
@@ -360,6 +419,8 @@ LIMITS = {'AGENTS.md': 4000, 'ARCHITECTURE.md': 6000}
 STATE_LIMIT = 2000
 MAX_LOG = 5
 MANIFEST = 'docs/references/workflow-preservation.json'
+ROADMAP = 'docs/exec-plans/roadmap.md'
+ACTIVE_DIR = 'docs/exec-plans/active/'
 
 def git(root, *args, data=None):
     return subprocess.run(['git', '-C', str(root), *args], input=data, capture_output=True, check=True).stdout
@@ -492,11 +553,33 @@ def check_snapshot(snapshot, allow_rotation=False):
             errors.append(f'{name}: dates, hashes and test-result counts belong in records, not current state.')
         if len(entries) > MAX_LOG and not allow_rotation:
             errors.append(f'{name}: {len(entries)} records > {MAX_LOG}; run python tools/check_docs.py --fix, review and stage both files.')
-        if name.startswith('docs/exec-plans/active/'):
+        if name.startswith(ACTIVE_DIR):
             opening = '\n'.join(state.splitlines()[:8])
-            for label in ('Status:', 'Next Step:', 'Blockers:'):
+            for label in ('Status:', 'Next Step:', 'Blockers:', 'Roadmap:'):
                 if label not in opening:
                     errors.append(f'{name}: missing opening {label}')
+    errors += check_planning(texts)
+    return errors
+
+def active_plans(texts):
+    return sorted(k for k in texts if k.startswith(ACTIVE_DIR) and k.endswith('.md') and '/' not in k[len(ACTIVE_DIR):])
+
+def check_planning(texts):
+    """Roadmap is the single project plan; at most one active plan, tied to a roadmap phase."""
+    if ROADMAP not in texts:
+        return [f'{ROADMAP}: required project roadmap missing.']
+    errors, plans, roadmap = [], active_plans(texts), texts[ROADMAP]
+    if len(plans) > 1:
+        errors.append(f'{ACTIVE_DIR}: at most one active plan allowed (found {len(plans)}: {", ".join(plans)}).')
+    linked = {link_destination(ROADMAP, target) for target in re.findall(r'\]\(([^)]+)\)', roadmap)}
+    for plan in plans:
+        match = re.search(r'^Roadmap:\s*Phase\s+(\w+)\.?\s*$', texts[plan], re.M)
+        if not match:
+            errors.append(f'{plan}: opening line must read "Roadmap: Phase <N>".')
+        elif not re.search(rf'\bPhase {re.escape(match[1])}\b', roadmap):
+            errors.append(f'{plan}: Phase {match[1]} is not listed in {ROADMAP}.')
+        if plan not in linked:
+            errors.append(f'{ROADMAP}: must link to the active plan {plan}.')
     return errors
 
 def check_docs(root: Path, staged=False) -> list[str]:
