@@ -24,10 +24,15 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
    - Instead of letting documentation grow indefinitely, we impose strict mathematical character budgets (e.g., `AGENTS.md` $\le$ 4,000 chars, `ARCHITECTURE.md` $\le$ 6,000 chars, total must-read budget $\le$ 10,000 chars).
    - Every document adheres to a normalized two-section format: `# Title` $\rightarrow$ `## Current State` (max 2,000 chars, rewritten in-place) $\rightarrow$ `## Records` (max 5 entries).
    - **Automated Historical Rotation**: When a document accumulates more than 5 logs, `python tools/check_docs.py --fix` automatically rotates older entries into `docs/archive/` while rewriting relative markdown links. The agent's working context stays permanently bounded and immune to token bloat.
+   - **AGENTS.md as a Map, Not an Encyclopedia**: Following OpenAI's progressive-disclosure guidance, `AGENTS.md` holds only always-on rules (precedence, hard permission gates, paused-plan authorization, evidence honesty, commit gate), commands, and a **reading-trigger table**. Each detailed rule set has exactly one owning policy, read only when its trigger fires:
+     - planning and roadmap work: `docs/exec-plans/README.md` (Planning Policy);
+     - editing `docs/`: `docs/documentation-policy.md`;
+     - autonomous work: `docs/autonomous-mode.md` plus the Planning Policy.
+   - New rules go into their owning policy, so the entrypoint stays small. `check_docs.py` fails if a policy file is missing or `AGENTS.md` does not route to it.
 
 2. **Strategic Roadmap & Active Plan Duality (`docs/exec-plans/`)**:
    - Solves task sprawl, context pollution, and architectural drift by strictly separating long-term product vision from immediate tactical execution:
-     - **Single Strategic Truth (`docs/exec-plans/roadmap.md`)**: The only project-wide plan defining goals, ordered phases with status, and approved direction. Its Current State declares the machine-readable marker `Current Phase: <N>`. Only the user approves modifications to it.
+     - **Single Strategic Truth (`docs/exec-plans/roadmap.md`)**: The only project-wide plan defining goals, ordered phases with status, and approved direction. Its Current State declares the machine-readable marker `Current Phase: <N>`. Only the user approves changes to goal, phases or direction; updating phase status and `Current Phase` during an approved handoff is routine.
      - **Single Active Plan Invariant (`docs/exec-plans/active/`)**: Holds **at most one** active plan (nested subdirectories included) corresponding to the roadmap's `Current Phase`. The plan opens with `Status:`, `Next Step:`, `Blockers:`, and `Roadmap: Phase <N>`, detailing tasks, acceptance criteria (commands and thresholds), and attempt budget.
      - **Atomic Single-Commit Phase Handoff**: Once a phase passes acceptance, verification evidence is recorded, the plan moves to `completed/`, the roadmap phase status and `Current Phase` marker are updated, and the next phase is scaffolded in `active/`—all committed together.
      - **Automated Planning Enforcement**: `tools/check_docs.py` mechanically checks for the roadmap and enforces the single active plan limit. It reads only the `## Current State` sections, so stale `## Records` history cannot satisfy a check, and it fails closed when a document is malformed. It verifies that:
@@ -52,7 +57,8 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
 
 5. **Autonomous Mode & `/goal` Guardrails**:
    - Solves the common failure modes of long-running, unattended agent loops (premature halting, infinite loops, moving goalposts, or destructive mutations).
-   - Rules include: continuous execution, exploration budget (max 3 approaches), pre-registration of intent in the active plan before substantive code changes, hard permission gates (cannot alter the goal, the roadmap, core boundaries, or delete history), and standardized turn heartbeats (`LOOP: attempt <k>/<N> | <state> | <metric>`).
+   - Rules in `docs/autonomous-mode.md` include: continuous execution, exploration budget (max 3 approaches), pre-registration of intent in the active plan before substantive code changes, phase handoff, and standardized turn heartbeats (`LOOP: attempt <k>/<N> | <state> | <metric>`).
+   - Hard permission gates stay in `AGENTS.md` so they are always visible: no changes to the roadmap goal, phases or direction, no weakened acceptance criteria, no changes to core invariants, no deleted evidence, no exceeded iteration budget.
 
 6. **Executable Architectural Boundary Checking (`check_architecture.py`)**:
    - Automatically scans `src/core/` for unauthorized external I/O, UI, OS, or networking dependencies.
@@ -66,7 +72,7 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
 ## Repository Files
 
 - **[`bootstrap_harness.py`](bootstrap_harness.py)**: The single-file executable generator that sets up the entire architecture in any new repository.
-- **[`update_prompt.txt`](update_prompt.txt)**: A dedicated AI prompt used to reverse-distill newly evolved rules from existing projects back into this toolkit.
+- **[`update_prompt.txt`](update_prompt.txt)**: A self-checking AI prompt that reverse-distills newly evolved rules from existing projects back into this toolkit. Its scope derives from the code, not a fixed file list.
 - **[`README.md`](README.md)**: Architectural documentation, operational philosophy, and usage instructions.
 
 ---
@@ -77,7 +83,7 @@ Running `bootstrap_harness.py` creates the following battle-tested repository st
 
 ```text
 my-project/
-├── AGENTS.md                  # Unified AI entrypoint (working rules, planning laws, doc laws, commands)
+├── AGENTS.md                  # Unified AI entrypoint: a map (always-on rules, reading triggers, commands)
 ├── ARCHITECTURE.md            # Dependency direction, ownership model, invariants
 ├── CLAUDE.md                  # Points to @AGENTS.md
 ├── .cursorrules               # Points to AGENTS.md for Cursor / Codex
@@ -93,10 +99,11 @@ my-project/
 │   ├── test_check_docs.py     # Regression tests for documentation guard & planning rules
 │   └── verify.py              # Single pipeline command to run all validations
 ├── docs/
-│   ├── README.md              # Document index table (consult on-demand)
-│   ├── documentation-policy.md# Two-section structure & rotation rules
+│   ├── README.md              # Navigation-only document index (consult on-demand)
+│   ├── documentation-policy.md# Owner: two-section structure, budgets, rotation
+│   ├── autonomous-mode.md     # Owner: /goal and unattended execution rules
 │   ├── exec-plans/
-│   │   ├── README.md          # Task status board & planning rules overview
+│   │   ├── README.md          # Owner: Planning Policy (roadmap, active plan, phase handoff)
 │   │   ├── roadmap.md         # Single project-wide strategic plan (Current Phase marker, phases, approved direction)
 │   │   ├── active/            # At most one active plan (Status / Next Step / Blockers / Roadmap: Phase <N>)
 │   │   ├── completed/         # Delivered phases with verification evidence
@@ -146,11 +153,13 @@ As you develop real-world software, your architectural invariants, boundaries, a
 1. Open [`update_prompt.txt`](update_prompt.txt).
 2. Copy its contents into an AI session (Cursor, Codex, Claude Code, or Antigravity) inside your evolving project.
 3. The AI agent will:
-   - Perform a read-only analysis of your latest rules.
-   - De-couple domain business logic from universal architectural patterns.
-   - Update `bootstrap_harness.py` and `README.md`.
-   - Run end-to-end tests in an isolated sandbox.
-   - Commit and push the updates directly back to this repository.
+   - Self-check that the prompt still matches the toolkit, and stop with a report if it is stale.
+   - Derive its scope from the `FILES` map in `bootstrap_harness.py` instead of a fixed file list, so the scope follows architecture changes.
+   - Compare each generated file with your project (read-only), and discover governance files that the toolkit does not cover yet.
+   - Trace every mechanically enforced rule to its checker and regression test.
+   - Generalize domain logic away, then update `bootstrap_harness.py` and `README.md`.
+   - Verify in an isolated sandbox, including a negative test for each synced rule.
+   - Report, commit only the changed files, and push after your approval.
 
 ---
 

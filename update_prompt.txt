@@ -1,48 +1,71 @@
-  ### 📋 Architecture Distillation & Harness Sync Prompt (Copy-Pasteable)
+### Harness Sync Prompt (copy into an AI session opened in your evolving project)
 
-    Please reverse-distill the latest architectural guardrails and engineering governance from my current project, and synchronize them into my starter toolkit repository (`harness_agent_project_bootup`).
+Reverse-distill the latest universal guardrails from this project (SOURCE, the current repository) into the starter toolkit `harness_agent_project_bootup` (TOOLKIT). If you do not know the TOOLKIT path, ask before starting.
 
-    ### Objective
-    Inspect the current project's latest architectural invariants, documentation rules, boundary checkers, and multi-agent configurations. Strip out all domain-specific business logic, update the universal
-  `bootstrap_harness.py` script and `README.md` in the toolkit repository, verify in a clean sandbox, and push the updates to GitHub.
+Do not rely on a fixed file list. Derive every scope from the code, so this prompt keeps working when the harness architecture changes.
 
-    ---
+---
 
-    ### Execution Instructions & Guardrails
+### 0. Self-check (stop on failure)
 
-    1. **Inspect Current Project Changes (Read-Only Analysis)**:
-       - Carefully review the following core files in the current repository to identify new rules, refined invariants, or updated tooling:
-         - `AGENTS.md` (budget caps, autonomous mode rules, working principles)
-         - `ARCHITECTURE.md` (dependency direction, ownership model, invariants)
-         - `tools/check_architecture.py` (new static boundary checks, AST/regex rules)
-         - `tools/check_docs.py` (formatting rules, word limits, historical rotation mechanisms)
-         - `.githooks/` and `.claude/` (new interception or pre-tool hooks)
-         - `tools/verify.*` (verification pipeline changes)
-       - *Note: Do NOT modify any files in the current project.*
+- Confirm that TOOLKIT contains `bootstrap_harness.py`, and that this script defines the generated-file map (currently the `FILES` dict, plus any `FILES["..."] = ...` assignments).
+- Confirm that the generated verification entrypoint still exists in that map (currently `tools/verify.py`).
+- If either assumption no longer holds, stop. Report which step of this prompt is stale and what replaced it. Do not guess.
 
-    2. **Generalize and De-couple from Domain Logic**:
-       - **Remove Domain Baggage**: Strip out project-specific entity names, game/business mechanics, and proprietary libraries. Convert them into universal software engineering abstractions (e.g., pure
-  `core` logic, `runtime/storage` state controllers, responsive `ui` containers).
-       - **Preserve Universal Multi-Agent Compatibility**: Keep `AGENTS.md` as the single source of truth, maintaining entrypoint pointers for `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`,
-  and `.claude/settings.json` so that OpenAI Codex, Claude Code, Cursor, GitHub Copilot, Windsurf, and Antigravity are all seamlessly supported.
-       - **Zero External Dependencies**: Ensure all generated tools remain 100% standard library Python 3 with cross-platform console encoding safety (CP950 / UTF-8) and Unix `LF` line endings.
+### 1. Inventory from TOOLKIT (source of truth for scope)
 
-    3. **Update Bootstrap Script and Documentation**:
-       - Target repository location: `C:\session` (or the local path of `harness_agent_project_bootup`).
-       - Update the embedded file templates inside `bootstrap_harness.py` to reflect the latest governance rules.
-       - If new principles, invariants, or mechanisms were introduced, document them in `README.md`.
+- Parse `bootstrap_harness.py` and list every path that it generates.
+- Read the limits and rules from the generated checkers themselves (for example `LIMITS`, `STATE_LIMIT`, `MAX_LOG`, planning checks in `tools/check_docs.py`). Do not copy numbers from this prompt or from README.
 
-    4. **Sandboxed End-to-End Verification (Mandatory)**:
-       - In an isolated temporary directory (e.g., `temp_test_harness`), run:
-         `python bootstrap_harness.py TestProject`
-       - Verify that all files generate cleanly and that `tools/verify.py`, `tools/check_architecture.py`, and `tools/test_check_docs.py` all exit with status code 0.
-       - Clean up and delete the temporary test directory completely.
+### 2. Compare SOURCE against the inventory (read-only)
 
-    5. **Commit and Push to GitHub**:
-       - In the `harness_agent_project_bootup` repository directory:
-         - Review changes with `git status` and `git diff`.
-         - Stage changes: `git add .`
-         - Commit with a semantic message (e.g., `feat: synchronize latest autonomous mode guardrails and doc-rotation rules`).
-         - Push to remote: `git push origin main` (https://github.com/ricky86102/harness_agent_project_bootup.git).
+For each generated path, compare the TOOLKIT template with the SOURCE file and classify it:
+- **Universal improvement**: a new or stricter rule, check, hook or test that applies to any project. Candidate to sync.
+- **Domain-specific**: entity names, business or game mechanics, proprietary libraries. Do not sync; generalize it only if an abstract version is useful.
+- **Weaker in SOURCE**: the TOOLKIT version is stricter. Keep TOOLKIT; never downgrade a guard.
+- **Unchanged or missing in SOURCE**.
 
-    When finished, provide a concise summary of the architectural features and improvements synchronized in this update.
+Do not modify any file in SOURCE.
+
+### 3. Discover governance that TOOLKIT does not cover yet
+
+Search SOURCE for governance files that are not in the inventory:
+- files referenced from `AGENTS.md`, `ARCHITECTURE.md`, git hooks, agent settings, or the verification pipeline;
+- everything under the hook directory, agent configuration directories, `tools/`, and documentation-policy docs;
+- CI workflows that run checks.
+
+List each candidate with its purpose and a recommendation (add, generalize, or skip). Add only universal ones.
+
+### 4. Rule-to-enforcement traceability
+
+For every rule in the SOURCE and TOOLKIT `AGENTS.md` / `ARCHITECTURE.md` that claims mechanical enforcement:
+- name the checker function that enforces it;
+- name the regression test that proves the checker rejects a violation.
+
+Every synced rule needs both. Report rules that are text-only, or that are enforced but not tested.
+
+### 5. Apply to TOOLKIT
+
+- Update the templates in `bootstrap_harness.py`. Keep generated tools standard-library Python 3, cross-platform console encoding safe (CP950 / UTF-8), with LF line endings.
+- Keep `AGENTS.md` the single source of truth, and keep the thin entrypoints for other agents that the inventory contains.
+- Keep every generated document within the budgets that the checkers enforce.
+- Update `README.md`: describe new mechanisms, and make the directory blueprint match the inventory exactly.
+- If the generated-file map or the verification entrypoint was renamed, update step 0 of this prompt.
+
+### 6. Verify in a sandbox (mandatory)
+
+In a new temporary directory outside both repositories:
+1. Run `git init`, then `python <TOOLKIT>/bootstrap_harness.py TestProject`. It must exit 0 (bootstrap returns non-zero when initial verification fails).
+2. Run the verification entrypoint and every generated test file. All must exit 0.
+3. For each rule synced in this run, create a violation and show that the relevant checker exits non-zero. Then revert the violation.
+4. Delete the temporary directory.
+
+### 7. Report, then commit
+
+Report:
+- the inventory classification from step 2 (path, status, action);
+- the new candidates from step 3;
+- traceability gaps from step 4;
+- verification evidence from step 6 (commands and exit codes).
+
+Then, in TOOLKIT, stage only the files that you changed (no `git add .`), and commit with a semantic message. Push only after the user approves the report.
