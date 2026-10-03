@@ -40,9 +40,9 @@ Read ONLY this file, [Architecture](ARCHITECTURE.md), and the active plan in `do
 
 ## Planning
 
-- The [Roadmap](docs/exec-plans/roadmap.md) is the only project-wide plan: goal, ordered phases with status, approved product direction. Only the user approves changes to it.
+- The [Roadmap](docs/exec-plans/roadmap.md) is the only project-wide plan: goal, `Current Phase: <N>`, ordered phases with status, approved direction. Only the user approves changes.
 - `docs/exec-plans/active/` holds at most one plan: the current roadmap phase, detailed enough for `/goal` to run it unattended. It opens with `Status:`, `Next Step:`, `Blockers:`, `Roadmap: Phase <N>`, then tasks, acceptance criteria (commands and thresholds) and the attempt budget. Long specs go in linked design docs; tasks and acceptance stay in the plan.
-- Phase handoff, in one commit: verify acceptance; move the plan with its evidence to `completed/`; update the phase status in the roadmap; write the next phase in full into `active/`, or `Status: awaiting user` with the open decisions if its direction is not approved.
+- Phase handoff, in one commit: verify acceptance; move the plan with its evidence to `completed/`; update roadmap phase status and `Current Phase:`; write the next phase in full into `active/`, or `Status: awaiting user` with the open decisions if its direction is not approved.
 - Precedence: explicit user instruction > roadmap > active plan. If the plan and the roadmap disagree, stop and ask.
 - User-paused plans go to `paused/`; never resume them without authorization.
 
@@ -209,7 +209,7 @@ git config --local core.hooksPath .githooks
 ## Current State
 
 - [Roadmap](roadmap.md): the only project-wide plan (goal, ordered phases, approved direction).
-- `active/`: at most one plan, the current roadmap phase. Opens with `Status:`, `Next Step:`, `Blockers:`, `Roadmap: Phase <N>`; holds tasks, acceptance criteria and budget.
+- `active/`: at most one plan, for the roadmap's `Current Phase: <N>`; the roadmap's Phase <N> line links it. Opens with `Status:`, `Next Step:`, `Blockers:`, `Roadmap: Phase <N>`; holds tasks, acceptance criteria and budget.
 - `completed/`: finished phases with their evidence.
 - `paused/`: explicitly postponed by the user; never resume without authorization.
 - Rules live in [AGENTS](../../AGENTS.md) (Planning); `tools/check_docs.py` enforces them.
@@ -223,6 +223,8 @@ git config --local core.hooksPath .githooks
 ## Current State
 
 Goal: Project architecture bootstrap and roadmap definition.
+
+Current Phase: 2
 
 ### Phases
 
@@ -319,7 +321,7 @@ class DocsRegressionTest(unittest.TestCase):
         self.assertEqual(len(entries), 1)
 
 class PlanningRulesTest(unittest.TestCase):
-    ROADMAP = "# Roadmap\\n\\n## Current State\\n\\n- Phase 2: active, [plan](active/p2.md)\\n\\n## Records\\n"
+    ROADMAP = "# Roadmap\\n\\n## Current State\\n\\nCurrent Phase: 2\\n\\n- Phase 2: active, [plan](active/p2.md)\\n\\n## Records\\n"
     PLAN = "# P2\\n\\n## Current State\\n\\nStatus: x\\nNext Step: y\\nBlockers: none\\nRoadmap: Phase 2\\n\\n## Records\\n"
 
     def texts(self, **extra):
@@ -382,6 +384,22 @@ class PlanningRulesTest(unittest.TestCase):
                                        "- Phase 1: done, [plan](active/p2.md)\\n- Phase 2: active")
         errors = docs.check_planning(self.texts(**{docs.ROADMAP: roadmap}))
         self.assertTrue(any("Phase 2 line must link" in e for e in errors))
+
+    def test_completed_phase_cannot_hold_active_plan(self):
+        roadmap = self.ROADMAP.replace("Current Phase: 2", "Current Phase: 3").replace(
+            "Phase 2: active", "Phase 2: complete")
+        errors = docs.check_planning(self.texts(**{docs.ROADMAP: roadmap}))
+        self.assertTrue(any("not the roadmap Current Phase 3" in e for e in errors))
+
+    def test_missing_current_phase_marker(self):
+        roadmap = self.ROADMAP.replace("Current Phase: 2\\n\\n", "")
+        errors = docs.check_planning(self.texts(**{docs.ROADMAP: roadmap}))
+        self.assertTrue(any('Current Phase: <N>' in e for e in errors))
+
+    def test_malformed_roadmap_fails_closed(self):
+        roadmap = self.ROADMAP + "loose text without a record heading\\n"
+        errors = docs.check_planning(self.texts(**{docs.ROADMAP: roadmap}))
+        self.assertTrue(any("must link to the active plan" in e for e in errors))
 
 if __name__ == '__main__':
     unittest.main()
@@ -593,19 +611,20 @@ def current_state(name, text):
     try:
         return parse_document(name, text)[0]
     except ValueError:
-        return text  # structure errors are reported by check_snapshot
+        return ''  # fail closed; check_snapshot reports the structure error
 
 def links_in(source, text):
     return {link_destination(source, target) for target in re.findall(r'\]\(([^)]+)\)', text)}
 
 def check_planning(texts):
-    """Roadmap is the single project plan; at most one active plan, tied to a roadmap phase."""
+    """Roadmap is the single project plan; at most one active plan, tied to the roadmap Current Phase."""
     if ROADMAP not in texts:
         return [f'{ROADMAP}: required project roadmap missing.']
     errors, plans, roadmap = [], active_plans(texts), current_state(ROADMAP, texts[ROADMAP])
     if len(plans) > 1:
         errors.append(f'{ACTIVE_DIR}: at most one active plan allowed (found {len(plans)}: {", ".join(plans)}).')
     linked = links_in(ROADMAP, roadmap)
+    current = re.search(r'^Current Phase:\s*(\w+)\.?\s*$', roadmap, re.M)
     for plan in plans:
         opening = '\n'.join(current_state(plan, texts[plan]).splitlines()[:8])
         match = re.search(r'^Roadmap:\s*Phase\s+(\w+)\.?\s*$', opening, re.M)
@@ -614,6 +633,10 @@ def check_planning(texts):
         if not match:
             errors.append(f'{plan}: opening line must read "Roadmap: Phase <N>".')
             continue
+        if not current:
+            errors.append(f'{ROADMAP}: Current State must declare "Current Phase: <N>".')
+        elif current[1] != match[1]:
+            errors.append(f'{plan}: Phase {match[1]} is not the roadmap Current Phase {current[1]}.')
         phase_lines = [line for line in roadmap.splitlines() if re.search(rf'\bPhase {re.escape(match[1])}\b', line)]
         if not phase_lines:
             errors.append(f'{plan}: Phase {match[1]} is not listed in {ROADMAP} Current State.')

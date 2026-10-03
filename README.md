@@ -27,10 +27,14 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
 
 2. **Strategic Roadmap & Active Plan Duality (`docs/exec-plans/`)**:
    - Solves task sprawl, context pollution, and architectural drift by strictly separating long-term product vision from immediate tactical execution:
-     - **Single Strategic Truth (`docs/exec-plans/roadmap.md`)**: The only project-wide plan defining goals, ordered phases with status, and approved direction. Only the user approves modifications to it.
-     - **Single Active Plan Invariant (`docs/exec-plans/active/`)**: Holds **at most one** active plan corresponding to the current roadmap phase. The plan opens with `Status:`, `Next Step:`, `Blockers:`, and `Roadmap: Phase <N>`, detailing tasks, acceptance criteria (commands and thresholds), and attempt budget.
-     - **Atomic Single-Commit Phase Handoff**: Once a phase passes acceptance, verification evidence is recorded, the plan moves to `completed/`, the roadmap phase status is updated, and the next phase is scaffolded in `active/`—all committed together.
-     - **Automated Planning Enforcement**: `tools/check_docs.py` mechanically checks for the roadmap, enforces the single active plan limit, verifies the `Roadmap: Phase <N>` binding, and guarantees that the roadmap links to the active plan.
+     - **Single Strategic Truth (`docs/exec-plans/roadmap.md`)**: The only project-wide plan defining goals, ordered phases with status, and approved direction. Its Current State declares the machine-readable marker `Current Phase: <N>`. Only the user approves modifications to it.
+     - **Single Active Plan Invariant (`docs/exec-plans/active/`)**: Holds **at most one** active plan (nested subdirectories included) corresponding to the roadmap's `Current Phase`. The plan opens with `Status:`, `Next Step:`, `Blockers:`, and `Roadmap: Phase <N>`, detailing tasks, acceptance criteria (commands and thresholds), and attempt budget.
+     - **Atomic Single-Commit Phase Handoff**: Once a phase passes acceptance, verification evidence is recorded, the plan moves to `completed/`, the roadmap phase status and `Current Phase` marker are updated, and the next phase is scaffolded in `active/`—all committed together.
+     - **Automated Planning Enforcement**: `tools/check_docs.py` mechanically checks for the roadmap and enforces the single active plan limit. It reads only the `## Current State` sections, so stale `## Records` history cannot satisfy a check, and it fails closed when a document is malformed. It verifies that:
+       - the plan's opening lines declare `Roadmap: Phase <N>`;
+       - `<N>` equals the roadmap's `Current Phase: <N>`, so a completed phase cannot hold the active plan;
+       - the roadmap's Phase `<N>` line links to the active plan.
+     - **Initialization Exit Status**: `bootstrap_harness.py` exits non-zero when the initial verification fails, so scripted setups detect a broken scaffold.
      - **Clear Precedence Hierarchy**: Explicit User Instruction > Roadmap > Active Plan.
 
 3. **Git Index-Level Mechanical Enforcement (`--staged` Pre-Commit Guard)**:
@@ -93,7 +97,7 @@ my-project/
 │   ├── documentation-policy.md# Two-section structure & rotation rules
 │   ├── exec-plans/
 │   │   ├── README.md          # Task status board & planning rules overview
-│   │   ├── roadmap.md         # Single project-wide strategic plan (phases & approved direction)
+│   │   ├── roadmap.md         # Single project-wide strategic plan (Current Phase marker, phases, approved direction)
 │   │   ├── active/            # At most one active plan (Status / Next Step / Blockers / Roadmap: Phase <N>)
 │   │   ├── completed/         # Delivered phases with verification evidence
 │   │   └── paused/            # Postponed tasks (do not resume without approval)
