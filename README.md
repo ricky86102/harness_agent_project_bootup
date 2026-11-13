@@ -94,8 +94,10 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
 
 ## Repository Files
 
-- **[`bootstrap_harness.py`](bootstrap_harness.py)**: The single-file executable generator that sets up the entire architecture in any new repository.
-- **[`update_prompt.txt`](update_prompt.txt)**: A self-checking AI prompt that reverse-distills newly evolved rules from existing projects back into this toolkit. Its scope derives from the code, not a fixed file list.
+- **[`bootstrap_harness.py`](bootstrap_harness.py)**: The generator. It copies `template/` into the current directory, sets up git, and runs the initial verification.
+- **[`template/`](template/)**: Every generated file, maintained as ordinary files at its generated path. Edit, lint and test them directly.
+  - A trailing `.tmpl` is stripped on generation (`AGENTS.md.tmpl`, `CLAUDE.md.tmpl`, `.gitignore.tmpl`), so these files do not act on this toolkit repository itself.
+  - Test the templates in place: `python -m unittest discover -s template/tools -p "test_*.py"`.
 - **[`README.md`](README.md)**: Architectural documentation, operational philosophy, and usage instructions.
 
 ---
@@ -157,15 +159,15 @@ my-project/
 
 ### 1. Initialize in a New Project
 
-Copy `bootstrap_harness.py` to your new project directory (or call it directly by absolute path):
+Call `bootstrap_harness.py` by its path in the toolkit checkout; it reads `template/` next to itself:
 
 ```bash
 mkdir my-new-project
 cd my-new-project
 git init
 
-# Run the bootstrap script
-python bootstrap_harness.py "MyCoolApp"
+# Run the bootstrap script from the toolkit checkout
+python /path/to/harness_agent_project_bootup/bootstrap_harness.py "MyCoolApp"
 ```
 
 The script will:
@@ -180,23 +182,6 @@ Commit the scaffold on the main branch (the first commit is exempt from the phas
 You can now immediately instruct Codex, Cursor, Claude, or Copilot:
 
 > *"I have initialized the repository with AGENTS.md and ARCHITECTURE.md. Please read AGENTS.md, review the roadmap in docs/exec-plans/roadmap.md, initialize the active plan in docs/exec-plans/active/ for the current phase, and begin implementation."*
-
----
-
-## Continuous Evolution: Syncing Architecture Updates
-
-As you develop real-world software, your architectural invariants, boundaries, and verification tools will naturally evolve. To keep this starter kit synchronized without manual editing:
-
-1. Open [`update_prompt.txt`](update_prompt.txt).
-2. Copy its contents into an AI session (Cursor, Codex, Claude Code, or Antigravity) inside your evolving project.
-3. The AI agent will:
-   - Self-check that the prompt still matches the toolkit, and stop with a report if it is stale.
-   - Derive its scope from the `FILES` map in `bootstrap_harness.py` instead of a fixed file list, so the scope follows architecture changes.
-   - Compare each generated file with your project (read-only), and discover governance files that the toolkit does not cover yet.
-   - Trace every mechanically enforced rule to its checker and regression test.
-   - Generalize domain logic away, then update `bootstrap_harness.py` and `README.md`.
-   - Verify in an isolated sandbox, including a negative test for each synced rule.
-   - Report, commit only the changed files, and push after your approval.
 
 ---
 

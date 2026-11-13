@@ -1,0 +1,50 @@
+# Project Entrypoint
+
+## Required Reading
+
+Always read this file, [Architecture](ARCHITECTURE.md), and the active plan in `docs/exec-plans/active/`. Load other documents only through these triggers; NEVER load documents in bulk.
+
+| Before you | Read |
+| --- | --- |
+| act on any request that changes files: classify it as phase or runtime, start or finish a phase, produce runtime output | [Work Modes](docs/work-modes.md) |
+| create, change or hand off a plan, or touch the roadmap | [Planning Policy](docs/exec-plans/README.md) |
+| create or edit `AGENTS.md`, `ARCHITECTURE.md` or a document under `docs/` | [Documentation Policy](docs/documentation-policy.md) |
+| start autonomous work (`/goal`, unattended or batch runs) | [Autonomous Mode](docs/autonomous-mode.md) and [Planning Policy](docs/exec-plans/README.md) |
+| look for anything else | [Index](docs/README.md) |
+
+## Working Rules
+
+- Use English for user communication, code, commands, and documentation.
+- The user decides product direction; ask when uncertain instead of assuming competitor behavior or making guesses. Confirmed instructions override historical records.
+- Strict architectural boundaries: `src/core` is pure business logic and must NOT depend on platform APIs, UI, networking, or external I/O.
+- UI uses responsive layout containers; NEVER hardcode screen positions or offsets.
+- Presentation only projects state snapshots; animation and rendering must NOT trigger state side-effects.
+- Decisions, constraints, and evidence are preserved in the repository. Unverified features must never be marked as completed.
+
+## Always-On Rules
+
+- Precedence: explicit user instruction > [Roadmap](docs/exec-plans/roadmap.md) > active plan. If the plan and the roadmap disagree, stop and ask.
+- Classify every request first; if unclear, ask.
+  - **Phase**: the user explicitly advances the project (improve the pipeline, add a capability).
+  - **Runtime**: the user wants routine output from the current pipeline.
+  - Phase work happens only in a `phase/*` worktree (`python tools/phase.py start <slug>`) and reaches the main branch only through `python tools/phase.py finish "<summary>"`.
+  - Runtime work writes only into `runs/<id>/` (the `runs` branch worktree) and commits with `python tools/runs.py record`.
+  - Runtime work never changes code, tools, docs or plans.
+- Write documents tersely: one fact per line, no filler, each rule once in its owner, edits in place. `check_docs.py` rejects violations.
+- Never resume a plan in `docs/exec-plans/paused/` without authorization.
+- Hard permission gates for autonomous work. Halt and ask the user before:
+  - changing the roadmap goal, phases or approved direction (an approved phase handoff may update phase status and `Current Phase:`);
+  - weakening acceptance criteria or test assertions;
+  - modifying core invariants, schemas or dependency rules in `ARCHITECTURE.md`;
+  - deleting test logs, metrics or archival evidence;
+  - exceeding the iteration budget.
+- Never bypass the git hooks (`--no-verify`, changing `core.hooksPath`, `update-ref`, force push). Never merge between the main and `runs` branches.
+- `python tools/check_docs.py` must pass before commit; the pre-commit hook checks the staged index. Run `python tools/runs.py setup` on every fresh clone.
+
+## Commands
+
+- Full verification: `python tools/verify.py`
+- Phase: `python tools/phase.py start <slug>` / `status` / `finish "<summary>"`
+- Runtime: `python tools/runs.py record <id> "<summary>"` / `status`; fresh clone: `setup`
+- Architecture check: `python tools/check_architecture.py`
+- Documentation check: `python tools/check_docs.py` (`--fix` rotates old records)
