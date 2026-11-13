@@ -45,7 +45,8 @@ class AgentGuardTest(unittest.TestCase):
     def test_hook_bypass_blocked(self):
         for command in ('git commit --no-verify -m x', 'git commit -nm x', 'git -c core.hooksPath=/dev/null commit -m x',
                         'git config core.hooksPath .githooks', 'git update-ref refs/heads/main abc',
-                        'git push --force origin main', 'git merge --allow-unrelated-histories runs'):
+                        'git push --force origin main', 'git merge --allow-unrelated-histories runs',
+                        'git config harness.reviewStrict false', 'git config --unset harness.reviewer'):
             self.assertTrue(self.reason(command), command)
 
     def test_merge_on_main(self):

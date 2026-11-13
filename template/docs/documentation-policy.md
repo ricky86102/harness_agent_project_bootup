@@ -33,7 +33,8 @@ Apply to `AGENTS.md`, `ARCHITECTURE.md` and `docs/` (not `archive/`). Checker-en
 
 - Check: `python tools/check_docs.py`
 - Rotate old records: `python tools/check_docs.py --fix`, then review and stage both files.
-- Pre-commit (automatic): `python tools/check_docs.py --staged`
+- Pre-commit (automatic): `python tools/check_docs.py --staged`, then `python tools/doc_review.py`.
+- `doc_review.py` sends only staged changes to these documents to a small model, judged against this Current State at HEAD.
 - Fresh clone: `python tools/runs.py setup`
 
 ## Records

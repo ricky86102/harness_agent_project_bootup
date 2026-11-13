@@ -92,6 +92,18 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
 
 ---
 
+9. **LLM Document Review (`tools/doc_review.py`, run by pre-commit)**:
+   - A small model judges only the cleanliness of staged changes to `AGENTS.md`, `ARCHITECTURE.md` and `docs/` (archive excluded). Commits without document changes cost nothing.
+   - **Engines**: Claude Haiku (`claude -p`) or Codex `gpt-6-luna` (`codex exec`). `git config harness.reviewer claude|codex` forces one; otherwise the committing agent is detected (`CLAUDECODE` / `CODEX_*`), then the first CLI found. Models: `harness.reviewerClaudeModel`, `harness.reviewerCodexModel`.
+   - **Scope is enforced, not requested**: the hook builds the diff from `check_docs.is_document()` paths only and pipes it on stdin. The CLI runs in an empty temporary directory with no tools (Claude) or a read-only sandbox (Codex), without user or project settings. Replies naming any other file are rejected.
+   - **Nothing goes stale**: the prompt file holds only the frame. The rubric is the Current State of `docs/documentation-policy.md` at HEAD, so editing the policy edits the reviewer, and a commit cannot loosen the rules it is judged by. Owners come from the `AGENTS.md` trigger table and `check_docs.POLICIES`. A regression test fails if policy rules are copied into the frame.
+   - **Output**: one JSON object (`verdict`, `issues[file,line,problem,fix]`); `fail` or an unusable reply blocks the commit. Diffs over 30,000 characters must be split.
+   - **Cost control**: approved document contents are cached by blob in the shared git directory, so a phase squash merge does not re-review content already approved in its worktree. The first scaffold commit is not reviewed.
+   - **Outages** (CLI missing, logged out, timeout) warn and allow the commit; `git config harness.reviewStrict true` blocks instead. `tools/agent_guard.py` blocks agents from changing `harness.review*` settings.
+   - The deterministic `check_docs.py` rules stay the primary gate; the model only judges what they cannot (vague, misplaced, stale or appended text). Prompt injection inside a diff is mitigated (data fences, no tools, JSON-only reply), not eliminated.
+
+---
+
 ## Repository Files
 
 - **[`bootstrap_harness.py`](bootstrap_harness.py)**: The generator. It copies `template/` into the current directory, sets up git, and runs the initial verification.
@@ -116,9 +128,10 @@ my-project/
 │   └── copilot-instructions.md# Points to AGENTS.md for Copilot / Codex
 ├── .gitignore                 # Ignores /runs/ (the runs branch worktree)
 ├── .claude/
-│   └── settings.json          # PreToolUse hook for Claude Code (runs tools/agent_guard.py)
+│   ├── settings.json          # PreToolUse hook for Claude Code (runs tools/agent_guard.py)
+│   └── skills/doc-review/     # Skill: run the document review before committing
 ├── .githooks/
-│   ├── pre-commit             # Main branch: phase squash only; docs & architecture checks
+│   ├── pre-commit             # Main branch: phase squash only; docs & architecture checks; LLM document review
 │   ├── commit-msg             # Main branch: concise "phase(<N>): ..." messages
 │   ├── pre-merge-commit       # Main branch: no merge commits
 │   └── pre-push               # Main branch: refuse merge / non-conforming commits
@@ -129,9 +142,12 @@ my-project/
 │   ├── phase.py               # start / status / finish a phase worktree (squash merge)
 │   ├── runs.py                # setup / record / status for the orphan runs branch worktree
 │   ├── agent_guard.py         # Claude Code guard against hook bypass and non-squash merges
+│   ├── doc_review.py          # LLM cleanliness review of staged document diffs (pre-commit)
+│   ├── doc_review_prompt.md   # Reviewer frame only: role, data boundaries, JSON reply shape
 │   ├── test_check_docs.py     # Regression tests for documentation guard & planning rules
 │   ├── test_check_architecture.py # Regression tests for the architecture checker
 │   ├── test_git_guard.py      # Regression tests for the workflow guards
+│   ├── test_doc_review.py     # Regression tests for the document reviewer (fake CLI)
 │   └── verify.py              # Single pipeline command to run all validations
 ├── docs/
 │   ├── README.md              # Navigation-only document index (consult on-demand)

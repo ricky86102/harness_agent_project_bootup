@@ -8,7 +8,8 @@ Main branch (git config harness.mainBranch):
   - commit-msg: "phase(<N>): <summary>", concise;
   - pre-merge-commit: refuse merge commits (squash only).
 Runs branch (git config harness.runsBranch, default runs): runtime records, free-form commits.
-Every branch except runs: never stage the runs/ worktree path.
+Every branch except runs: never stage the runs/ worktree path; staged document changes pass
+tools/doc_review.py (LLM cleanliness review).
 pre-push: main receives only phase squash commits; main and runs never share history.
 """
 import re
@@ -89,6 +90,16 @@ def run_checks():
             return fail([f'{script} failed'], 'Fix the reported problems before committing.')
     return 0
 
+def review_docs():
+    """LLM cleanliness review of staged document changes (tools/doc_review.py in this worktree)."""
+    top = git('rev-parse', '--show-toplevel')
+    script = Path(top, 'tools', 'doc_review.py')
+    if not script.exists():
+        return 0
+    if subprocess.run([sys.executable, str(script)], cwd=top).returncode:
+        return fail(['document review failed'], 'Fix the reported issues in place, stage them, and commit again.')
+    return 0
+
 def pre_commit():
     branch = current_branch()
     if branch == runs_branch():
@@ -99,16 +110,16 @@ def pre_commit():
         return fail([f'{branch or "HEAD"} stages runs worktree path {p}' for p in leaked],
                     f'Runtime records belong to the {runs_branch()} branch: python tools/runs.py record <id> "<summary>"')
     if branch not in protected_branches():
-        return 0  # phase branches commit freely
+        return review_docs()  # phase branches commit freely, but document changes are still reviewed
     if not head_exists():
-        return run_checks()
+        return run_checks()  # the first commit is the generated scaffold; its documents ship pre-reviewed
     if git_state('MERGE_HEAD'):
         return fail([f'merge commit on {branch}'], 'Main accepts only squash merges: python tools/phase.py finish "<summary>"')
     if not git_state('SQUASH_MSG'):
         return fail([f'direct commit on {branch}'],
                     'Main receives only phase squash commits. Phase work: python tools/phase.py start <slug>. '
                     'Runtime records: python tools/runs.py record <id> "<summary>".')
-    return run_checks()
+    return run_checks() or review_docs()
 
 def commit_msg(path):
     if current_branch() not in protected_branches() or not head_exists():

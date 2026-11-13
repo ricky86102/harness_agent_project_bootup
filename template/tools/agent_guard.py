@@ -16,6 +16,7 @@ RULES = (
     (GIT + r'\bupdate-ref\b', 'do not move branch refs directly.'),
     (GIT + r'\bpush\b[^\n;&|]*(?:\s--force(?:-with-lease)?\b|\s-f\b|\s\+\S)', 'no force push.'),
     (r'--allow-unrelated-histories\b', 'the main and runs branches never merge.'),
+    (r'\bharness\.review', 'do not change the document reviewer settings.'),
 )
 MERGE = re.compile(GIT + r'\bmerge(?![-\w])([^\n;&|]*)')
 SWITCH = re.compile(GIT + r'\b(?:switch|checkout)\b([^\n;&|]*)')
