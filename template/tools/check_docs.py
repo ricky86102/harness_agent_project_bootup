@@ -28,7 +28,7 @@ MANIFEST = 'docs/references/workflow-preservation.json'
 ROADMAP = 'docs/exec-plans/roadmap.md'
 ACTIVE_DIR = 'docs/exec-plans/active/'
 POLICIES = ('docs/exec-plans/README.md', 'docs/documentation-policy.md', 'docs/autonomous-mode.md',
-            'docs/work-modes.md')
+            'docs/work-modes.md', 'docs/model-routing.md')
 
 def git(root, *args, data=None):
     return subprocess.run(['git', '-C', str(root), *args], input=data, capture_output=True, check=True).stdout

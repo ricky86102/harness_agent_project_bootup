@@ -10,12 +10,13 @@ Always read this file, [Architecture](ARCHITECTURE.md), and the active plan in `
 | create, change or hand off a plan, or touch the roadmap | [Planning Policy](docs/exec-plans/README.md) |
 | create or edit `AGENTS.md`, `ARCHITECTURE.md` or a document under `docs/` | [Documentation Policy](docs/documentation-policy.md) |
 | start autonomous work (`/goal`, unattended or batch runs) | [Autonomous Mode](docs/autonomous-mode.md) and [Planning Policy](docs/exec-plans/README.md) |
+| delegate to a subagent or choose a model tier | [Model Routing](docs/model-routing.md) |
 | look for anything else | [Index](docs/README.md) |
 
 ## Working Rules
 
 - Use English for user communication, code, commands, and documentation.
-- The user decides product direction; ask when uncertain instead of assuming competitor behavior or making guesses. Confirmed instructions override historical records.
+- The user decides product direction; ask instead of guessing. Confirmed instructions override historical records.
 - Strict architectural boundaries: `src/core` is pure business logic and must NOT depend on platform APIs, UI, networking, or external I/O.
 - UI uses responsive layout containers; NEVER hardcode screen positions or offsets.
 - Presentation only projects state snapshots; animation and rendering must NOT trigger state side-effects.
@@ -31,6 +32,7 @@ Always read this file, [Architecture](ARCHITECTURE.md), and the active plan in `
   - Runtime work writes only into `runs/<id>/` (the `runs` branch worktree) and commits with `python tools/runs.py record`.
   - Runtime work never changes code, tools, docs or plans.
 - Write documents tersely: one fact per line, no filler, each rule once in its owner, edits in place. `check_docs.py` rejects violations.
+- Delegate only to the tier agents in `.claude/agents/`; acceptance never leaves the session model.
 - Never resume a plan in `docs/exec-plans/paused/` without authorization.
 - Hard permission gates for autonomous work. Halt and ask the user before:
   - changing the roadmap goal, phases or approved direction (an approved phase handoff may update phase status and `Current Phase:`);

@@ -102,6 +102,15 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
    - **Outages** (CLI missing, logged out, timeout) warn and allow the commit; `git config harness.reviewStrict true` blocks instead. `tools/agent_guard.py` blocks agents from changing `harness.review*` settings.
    - The deterministic `check_docs.py` rules stay the primary gate; the model only judges what they cannot (vague, misplaced, stale or appended text). Prompt injection inside a diff is mitigated (data fences, no tools, JSON-only reply), not eliminated.
 
+10. **Model Routing and Step Budgets (`docs/model-routing.md`)**:
+    - The session model (recommended: Claude Fable) owns architecture, plans and acceptance, and never delegates them. Acceptance means rerunning verification and reading the diff; a subagent report is a claim.
+    - **Tier rules, first match wins**: read-only search goes to `researcher-haiku`; core, invariants, schemas, migrations, security, design trade-offs or hard-to-undo work goes to `implementer-opus`; fully specified work with an acceptance command goes to `implementer-sonnet`; anything else goes to Opus. When unsure, route up.
+    - **The model is fixed by the agent definition** (`.claude/agents/*.md`: `model`, `effort`, `maxTurns`, and for Haiku a read-only `tools` list). `tools/agent_budget.py` blocks a `model` override on these agents and briefs that do not start with `Tier: <agent> - rule <n>: <reason>`.
+    - **Built-in agents** (`Explore`, `Plan`, `claude-code-guide`, `general-purpose`) are allowed only as listed in `.claude/agent-budgets.json`. They pin no model and may inherit the expensive session model, so each call must set `model` from the agent's list (for example `Explore` with `haiku`, `general-purpose` with `sonnet` or `opus`). Unlisted types, including `fork`, are refused. They get the same budgets and stuck signals.
+    - **Step budgets against thinking loops**: every subagent tool call is counted per `agent_id` against `.claude/agent-budgets.json`. Near the budget the agent is told to wrap up; at the budget, or on a stuck signal (identical call repeated, one file edited too often), every further call is blocked and the agent must reply with `Status / Tried / Evidence / Hypothesis / Next`. Long read-only streaks in implementers trigger a nudge. `maxTurns` is the backstop; `effort` caps pure reasoning, which hooks cannot see.
+    - **After a report**, the session model starts a fresh agent with the report as handoff, narrows the scope, or takes over; it never extends the same agent's budget. Subagents cannot delegate further.
+    - Thresholds live only in the JSON file; a regression test fails if the policy hard-codes them. Codex has no equivalent hooks and follows the policy text only.
+
 ---
 
 ## Repository Files
@@ -128,7 +137,9 @@ my-project/
 │   └── copilot-instructions.md# Points to AGENTS.md for Copilot / Codex
 ├── .gitignore                 # Ignores /runs/ (the runs branch worktree)
 ├── .claude/
-│   ├── settings.json          # PreToolUse hook for Claude Code (runs tools/agent_guard.py)
+│   ├── settings.json          # Claude Code hooks: agent_guard (shell), agent_budget (every tool)
+│   ├── agent-budgets.json     # Tool-call budgets and stuck-signal thresholds per tier agent
+│   ├── agents/                # implementer-opus, implementer-sonnet, researcher-haiku
 │   └── skills/doc-review/     # Skill: run the document review before committing
 ├── .githooks/
 │   ├── pre-commit             # Main branch: phase squash only; docs & architecture checks; LLM document review
@@ -143,17 +154,20 @@ my-project/
 │   ├── runs.py                # setup / record / status for the orphan runs branch worktree
 │   ├── agent_guard.py         # Claude Code guard against hook bypass and non-squash merges
 │   ├── doc_review.py          # LLM cleanliness review of staged document diffs (pre-commit)
+│   ├── agent_budget.py        # Dispatch checks and subagent step budgets (Claude Code hooks)
 │   ├── doc_review_prompt.md   # Reviewer frame only: role, data boundaries, JSON reply shape
 │   ├── test_check_docs.py     # Regression tests for documentation guard & planning rules
 │   ├── test_check_architecture.py # Regression tests for the architecture checker
 │   ├── test_git_guard.py      # Regression tests for the workflow guards
 │   ├── test_doc_review.py     # Regression tests for the document reviewer (fake CLI)
+│   ├── test_agent_budget.py   # Regression tests for model routing and step budgets
 │   └── verify.py              # Single pipeline command to run all validations
 ├── docs/
 │   ├── README.md              # Navigation-only document index (consult on-demand)
 │   ├── documentation-policy.md# Owner: two-section structure, budgets, rotation
 │   ├── autonomous-mode.md     # Owner: /goal and unattended execution rules
 │   ├── work-modes.md          # Owner: phase vs runtime, worktree and squash-merge rules
+│   ├── model-routing.md       # Owner: model tiers, delegation, step budgets, reports
 │   ├── exec-plans/
 │   │   ├── README.md          # Owner: Planning Policy (roadmap, active plan, phase handoff)
 │   │   ├── roadmap.md         # Single project-wide strategic plan (Current Phase marker, phases, approved direction)
