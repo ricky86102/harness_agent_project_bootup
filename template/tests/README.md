@@ -6,7 +6,7 @@ Tests are partitioned strictly by responsibility to avoid redundant coverage:
 2. **Documentation Guard (`tools/test_check_docs.py`)**: Ensures documentation parser, planning rules and archive rotation continue to work.
 3. **Workflow Guard (`tools/test_git_guard.py`)**: Main-branch commit rules, the agent command guard, and phase parsing.
 4. **Document Review (`tools/test_doc_review.py`)**: Reviewer scope, prompt assembly, reply validation and caching, with a fake CLI.
-5. **Model Routing (`tools/test_agent_budget.py`)**: Dispatch checks, step budgets, stuck signals, and agent definitions matching the budget file.
+5. **Model Routing (`tools/test_agent_budget.py`, `tools/test_codex_config.py`)**: Claude dispatch and budget hooks; Codex definition/allowlist consistency and built-in model mappings.
 6. **Unit & Integration Tests**: Verify `src/core/` algorithms, state transitions, and edge cases.
 
-Run all checks via `python tools/verify.py`.
+Run all checks via `python tools/verify.py` with Python 3.11+ (`tomllib` validates Codex definitions without external dependencies).

@@ -2,41 +2,35 @@
 
 ## Current State
 
-Owner of model tiers, delegation and agent step budgets. `tools/agent_budget.py` (Claude Code hooks) and `.claude/agents/` enforce the mechanical parts. Codex follows this text only.
+Owner of shared tier, escalation and budget rules. Resolve roles through the active [host policy](hosts/README.md).
 
 ### Roles
 
-- The session model (recommended: Fable) owns architecture, plans, the roadmap and acceptance. It never delegates them.
+- The session model owns architecture, plans, the roadmap and acceptance. It never delegates them.
 - Acceptance: rerun the verification commands and read the diff yourself. A subagent report is a claim, not evidence.
 - Subagents never delegate further.
 
 ### Tier Rules (first match wins)
 
 1. Architecture, direction, roadmap, phase plan, or acceptance: the session model itself.
-2. Read-only work (search code, docs or the web; summarize; locate): `researcher-haiku` or `Explore`.
-3. Touches `ARCHITECTURE.md` invariants, `src/core`, schemas, migrations or security; needs a design trade-off; or is hard to undo: `implementer-opus`.
-4. Complete spec, acceptance command given, few files (tests to spec, mechanical refactor, template-driven docs): `implementer-sonnet`.
-5. Anything else: `implementer-opus`. When unsure, route up, never down.
+2. Read-only work (search code, docs or the web; summarize; locate): `researcher`.
+3. Touches `ARCHITECTURE.md` invariants, `src/core`, schemas, migrations or security; needs a design trade-off; or is hard to undo: `implementer-core`.
+4. Complete spec, acceptance command given, few files (tests to spec, mechanical refactor, template-driven docs): `implementer-spec`.
+5. Anything else: `implementer-core`. When unsure, route up, never down.
 
 ### Dispatch
 
-- Start every brief with `Tier: <agent> - rule <n>: <reason>`, then the task, files and acceptance command.
-- Never override a project tier agent's model. Pass `effort: high` to `implementer-opus` only for rule 3 design trade-offs.
-- Escalate: `implementer-sonnet` failing twice goes to `implementer-opus`; an insufficient `researcher-haiku` answer goes to `implementer-sonnet`.
-
-### Built-in Agents
-
-- Only agent types listed in `.claude/agent-budgets.json` may be dispatched; others, including `fork`, are refused.
-- A built-in agent pins no model and may inherit the session model, so its call must set `model` from its listed models.
-- Tier rules still choose the model: `general-purpose` with `sonnet` follows rule 4, with `opus` rules 3 and 5.
-- Built-in agents get the same step budgets and stuck signals as the project tier agents.
+- Start every brief with `Tier: <actual-agent> - rule <n>: <reason>`, then the task, files and acceptance command.
+- Only dispatch agents in the host's allowlist; keep custom models fixed and explicitly select a listed, tier-matching model for built-ins.
+- Escalate `implementer-spec` after two failed attempts to `implementer-core`; escalate insufficient `researcher` findings to `implementer-spec`.
 
 ### Step Budgets
 
-- Each agent has a tool-call budget in `.claude/agent-budgets.json` and a `maxTurns` backstop in its definition.
-- Near the budget the agent is told to wrap up. At the budget every tool call is blocked and the agent must report.
-- Stuck signals stop the agent early: an identical tool call repeated, or one file edited too often. Thresholds live in the same JSON file.
-- Reports use `Status`, `Tried`, `Evidence`, `Hypothesis`, `Next`; each agent definition holds the format.
+- Include the host's JSON tool-call limit and stuck thresholds in the brief; apply them to custom and built-in agents alike.
+- Count each tool invocation, including calls inside batches; wrap up at `warn_at`, and report before exceeding the budget.
+- Stop on `repeat_limit` identical calls or `same_file_edits` edits to one file.
+- At `read_streak`, implement or report the blocker; skip this nudge for read-only roles.
+- Follow the role's report format. The host policy states which limits are mechanically enforced.
 
 ### After a Report
 

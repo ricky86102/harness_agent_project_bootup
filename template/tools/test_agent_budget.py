@@ -132,8 +132,10 @@ class DefinitionTest(unittest.TestCase):
                 self.assertFalse(tools & (budget.WRITE_TOOLS | {'Bash', 'PowerShell', 'Agent'}), name)
 
     def test_policy_holds_no_threshold_numbers(self):
-        policy = (ROOT / 'docs' / 'model-routing.md').read_text(encoding='utf-8')
-        self.assertIsNone(re.search(r'\b\d+\s*(?:%|tool calls|times)', policy), 'thresholds belong in agent-budgets.json')
+        for path in ('docs/model-routing.md', 'docs/hosts/claude.md', 'docs/hosts/codex.md'):
+            policy = (ROOT / path).read_text(encoding='utf-8')
+            self.assertIsNone(re.search(r'\b\d+\s*(?:%|tool calls|times)', policy),
+                              f'{path}: thresholds belong in agent-budgets.json')
 
 if __name__ == '__main__':
     unittest.main()

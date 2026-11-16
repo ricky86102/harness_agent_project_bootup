@@ -1,0 +1,14 @@
+{
+  "agents": {
+    "implementer-astra": {"tool_calls": 40},
+    "implementer-sol": {"tool_calls": 25},
+    "researcher-terra": {"tool_calls": 15, "read_only": true},
+    "explorer": {"tool_calls": 15, "read_only": true, "models": ["gpt-6.1-terra"]},
+    "worker": {"tool_calls": 25, "models": ["gpt-6.1-sol", "gpt-6-astra"]},
+    "default": {"tool_calls": 25, "models": ["gpt-6.1-sol", "gpt-6-astra"]}
+  },
+  "warn_at": 0.8,
+  "repeat_limit": 3,
+  "same_file_edits": 6,
+  "read_streak": 15
+}

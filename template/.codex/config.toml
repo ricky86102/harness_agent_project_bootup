@@ -1,0 +1,5 @@
+# Project defaults; the session model and effective permissions remain host-selected.
+# Custom roles are discovered from .codex/agents/*.toml in a trusted project.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3

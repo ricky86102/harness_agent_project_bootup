@@ -1,6 +1,13 @@
 """Single entrypoint for full project verification."""
-import subprocess
 import sys
+
+if sys.version_info < (3, 11):
+    sys.exit(
+        '[ERROR] Python 3.11+ is required; running {}.{}.{}. '
+        'Rerun this command with Python 3.11 or newer.'.format(*sys.version_info[:3])
+    )
+
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]

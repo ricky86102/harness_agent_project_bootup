@@ -55,7 +55,8 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
 4. **Universal Multi-Agent Alignment (Vendor-Agnostic Single Source of Truth)**:
    - `AGENTS.md` is the universal core configuration.
    - Thin pointers ensure compatibility across all leading agent platforms:
-     - **OpenAI Codex / Generic Agent**: Native reading of `AGENTS.md`.
+     - **OpenAI Codex**: Native `AGENTS.md`, `.codex/agents/*.toml` role definitions, and `.agents/skills/` discovery.
+     - **Generic Agent**: Shared guidance in `AGENTS.md`.
      - **Cursor IDE**: `.cursorrules` pointing to `AGENTS.md`.
      - **GitHub Copilot**: `.github/copilot-instructions.md` pointing to `AGENTS.md`.
      - **Claude Code**: `CLAUDE.md` (`@AGENTS.md`) + `.claude/settings.json` PreToolUse hook.
@@ -72,7 +73,7 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
    - Reports `path:line: message`, fails closed on unparsable Python, and is covered by `tools/test_check_architecture.py`. Documentation checks run separately, so the pre-commit hook no longer checks docs twice.
 
 7. **Zero External Dependencies**:
-   - Built entirely on Python 3 standard library (`re`, `ast`, `pathlib`, `hashlib`, `subprocess`, `argparse`, `tempfile`). No `pip install` required.
+   - Bootstrap and full verification use Python 3.11+ standard library, including `tomllib` for Codex configuration tests. No `pip install` required.
 
 8. **Phase vs Runtime Work Modes (`docs/work-modes.md`)**:
    - Every request is classified first. **Phase**: the user explicitly advances the project (for a short-video project: improve the editing workflow, add subtitle generation). **Runtime**: the user wants routine output from the current pipeline (produce one video). Ambiguous requests are asked about, never silently promoted.
@@ -103,19 +104,29 @@ While OpenAI outlined the macro principles of harness engineering, this toolkit 
    - The deterministic `check_docs.py` rules stay the primary gate; the model only judges what they cannot (vague, misplaced, stale or appended text). Prompt injection inside a diff is mitigated (data fences, no tools, JSON-only reply), not eliminated.
 
 10. **Model Routing and Step Budgets (`docs/model-routing.md`)**:
-    - The session model (recommended: Claude Fable) owns architecture, plans and acceptance, and never delegates them. Acceptance means rerunning verification and reading the diff; a subagent report is a claim.
-    - **Tier rules, first match wins**: read-only search goes to `researcher-haiku`; core, invariants, schemas, migrations, security, design trade-offs or hard-to-undo work goes to `implementer-opus`; fully specified work with an acceptance command goes to `implementer-sonnet`; anything else goes to Opus. When unsure, route up.
+    - The session model owns architecture, plans and acceptance, and never delegates them. Acceptance means rerunning verification and reading the diff; a subagent report is a claim.
+    - **Tier rules, first match wins**: read-only search goes to `researcher`; core, invariants, schemas, migrations, security, design trade-offs or hard-to-undo work goes to `implementer-core`; fully specified work with an acceptance command goes to `implementer-spec`; anything else goes to `implementer-core`. Escalation is defined once in the shared policy.
+    - **Host mapping**: `docs/hosts/README.md` routes to only the active host's policy. Claude and Codex each map shared roles to their actual agents. New hosts extend that index and the required-policy registry without adding an AGENTS trigger.
     - **The model is fixed by the agent definition** (`.claude/agents/*.md`: `model`, `effort`, `maxTurns`, and for Haiku a read-only `tools` list). `tools/agent_budget.py` blocks a `model` override on these agents and briefs that do not start with `Tier: <agent> - rule <n>: <reason>`.
     - **Built-in agents** (`Explore`, `Plan`, `claude-code-guide`, `general-purpose`) are allowed only as listed in `.claude/agent-budgets.json`. They pin no model and may inherit the expensive session model, so each call must set `model` from the agent's list (for example `Explore` with `haiku`, `general-purpose` with `sonnet` or `opus`). Unlisted types, including `fork`, are refused. They get the same budgets and stuck signals.
     - **Step budgets against thinking loops**: every subagent tool call is counted per `agent_id` against `.claude/agent-budgets.json`. Near the budget the agent is told to wrap up; at the budget, or on a stuck signal (identical call repeated, one file edited too often), every further call is blocked and the agent must reply with `Status / Tried / Evidence / Hypothesis / Next`. Long read-only streaks in implementers trigger a nudge. `maxTurns` is the backstop; `effort` caps pure reasoning, which hooks cannot see.
     - **After a report**, the session model starts a fresh agent with the report as handoff, narrows the scope, or takes over; it never extends the same agent's budget. Subagents cannot delegate further.
-    - Thresholds live only in the JSON file; a regression test fails if the policy hard-codes them. Codex has no equivalent hooks and follows the policy text only.
+    - Thresholds live in each host's JSON file; regression tests reject threshold literals in the shared and host policies. Host policies distinguish mechanical enforcement from behavioral instructions.
+
+11. **Codex Roles and Tool Defaults (`docs/hosts/codex.md`)**:
+    - `.codex/agents/*.toml` maps shared tiers to Terra investigation, Sol specified implementation and Astra complex implementation, with explicit model and effort settings.
+    - `.codex/agent-budgets.json` lists allowed custom and built-in agents, explicit built-in models and step budgets. `tools/test_codex_config.py` checks these mappings against the definitions.
+    - Codex budgets and read-only restrictions are behavioral instructions; no Codex tool hook is installed. Shared Git hooks enforce commits and pushes.
+    - `.agents/skills/doc-review/` exposes document review. Skills and MCP tools retain task authorization and host permission requirements; no blanket approval or MCP server is added.
+    - Bootstrap preserves existing configuration. Merge defaults explicitly when adopting them in an existing project, and use a trusted project with a client that supports custom agents.
+    - Configuration references: [custom agents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [config reference](https://learn.chatgpt.com/docs/config-file/config-reference), and [skill discovery](https://learn.chatgpt.com/docs/build-skills).
 
 ---
 
 ## Repository Files
 
 - **[`bootstrap_harness.py`](bootstrap_harness.py)**: The generator. It copies `template/` into the current directory, sets up git, and runs the initial verification.
+- **[`tests/`](tests/)**: Toolkit-only entrypoint regression tests. Run `python -m unittest discover -s tests -p "test_*.py"` from this checkout.
 - **[`template/`](template/)**: Every generated file, maintained as ordinary files at its generated path. Edit, lint and test them directly.
   - A trailing `.tmpl` is stripped on generation (`AGENTS.md.tmpl`, `CLAUDE.md.tmpl`, `.gitignore.tmpl`), so these files do not act on this toolkit repository itself.
   - Test the templates in place: `python -m unittest discover -s template/tools -p "test_*.py"`.
@@ -141,6 +152,11 @@ my-project/
 │   ├── agent-budgets.json     # Tool-call budgets and stuck-signal thresholds per tier agent
 │   ├── agents/                # implementer-opus, implementer-sonnet, researcher-haiku
 │   └── skills/doc-review/     # Skill: run the document review before committing
+├── .codex/
+│   ├── config.toml            # Concurrent subagent limit; preserves host model and permissions
+│   ├── agent-budgets.json     # Allowed Codex roles and behavioral step budgets
+│   └── agents/               # researcher-terra, implementer-sol, implementer-astra (TOML)
+├── .agents/skills/doc-review/ # Codex skill: staged documentation review
 ├── .githooks/
 │   ├── pre-commit             # Main branch: phase squash only; docs & architecture checks; LLM document review
 │   ├── commit-msg             # Main branch: concise "phase(<N>): ..." messages
@@ -161,6 +177,7 @@ my-project/
 │   ├── test_git_guard.py      # Regression tests for the workflow guards
 │   ├── test_doc_review.py     # Regression tests for the document reviewer (fake CLI)
 │   ├── test_agent_budget.py   # Regression tests for model routing and step budgets
+│   ├── test_codex_config.py   # Codex definition, allowlist and built-in model consistency
 │   └── verify.py              # Single pipeline command to run all validations
 ├── docs/
 │   ├── README.md              # Navigation-only document index (consult on-demand)
@@ -168,6 +185,10 @@ my-project/
 │   ├── autonomous-mode.md     # Owner: /goal and unattended execution rules
 │   ├── work-modes.md          # Owner: phase vs runtime, worktree and squash-merge rules
 │   ├── model-routing.md       # Owner: model tiers, delegation, step budgets, reports
+│   ├── hosts/
+│   │   ├── README.md         # Host selection and shared skill/MCP authorization defaults
+│   │   ├── claude.md         # Claude role mapping and hook enforcement
+│   │   └── codex.md          # Codex role mapping, enforcement limits and skill discovery
 │   ├── exec-plans/
 │   │   ├── README.md          # Owner: Planning Policy (roadmap, active plan, phase handoff)
 │   │   ├── roadmap.md         # Single project-wide strategic plan (Current Phase marker, phases, approved direction)
@@ -186,6 +207,8 @@ my-project/
 ---
 
 ## Quick Start
+
+Prerequisite: Python 3.11+ for bootstrap and full verification.
 
 ### 1. Initialize in a New Project
 

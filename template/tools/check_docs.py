@@ -27,8 +27,10 @@ FILLER_RE = re.compile(r'\b(?:' + '|'.join(re.escape(f) for f in FILLER) + r')\b
 MANIFEST = 'docs/references/workflow-preservation.json'
 ROADMAP = 'docs/exec-plans/roadmap.md'
 ACTIVE_DIR = 'docs/exec-plans/active/'
+HOST_INDEX = 'docs/hosts/README.md'
 POLICIES = ('docs/exec-plans/README.md', 'docs/documentation-policy.md', 'docs/autonomous-mode.md',
-            'docs/work-modes.md', 'docs/model-routing.md')
+            'docs/work-modes.md', 'docs/model-routing.md', HOST_INDEX,
+            'docs/hosts/claude.md', 'docs/hosts/codex.md')
 
 def git(root, *args, data=None):
     return subprocess.run(['git', '-C', str(root), *args], input=data, capture_output=True, check=True).stdout
@@ -205,6 +207,9 @@ def check_writing(texts):
 def check_routes(texts):
     """AGENTS.md is a map: every owning policy must exist and be routed from it."""
     errors, routes = [], links_in('AGENTS.md', texts.get('AGENTS.md', ''))
+    if HOST_INDEX in routes:
+        host_routes = links_in(HOST_INDEX, current_state(HOST_INDEX, texts.get(HOST_INDEX, '')))
+        routes |= {path for path in host_routes if path and path.startswith('docs/hosts/')}
     for policy in POLICIES:
         if policy not in texts:
             errors.append(f'{policy}: required policy document missing.')

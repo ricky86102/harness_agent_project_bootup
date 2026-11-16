@@ -150,5 +150,40 @@ class RoutingRulesTest(unittest.TestCase):
         errors = docs.check_routes(self.texts(skip="docs/documentation-policy.md"))
         self.assertTrue(any("docs/documentation-policy.md: required policy document missing" in e for e in errors))
 
+    def host_texts(self):
+        texts = self.texts()
+        hosts = [p for p in docs.POLICIES if p.startswith('docs/hosts/') and p != docs.HOST_INDEX]
+        for host in hosts:
+            texts['AGENTS.md'] = texts['AGENTS.md'].replace(f'[p]({host})\n', '')
+        links = ''.join(f'[host]({Path(host).name})\n' for host in hosts)
+        texts[docs.HOST_INDEX] = '# Hosts\n\n## Current State\n\n' + links + '\n## Records\n'
+        return texts
+
+    def test_host_index_routes_policies_without_vendor_links_in_agents(self):
+        self.assertEqual(docs.check_routes(self.host_texts()), [])
+
+    def test_unreachable_host_index_cannot_supply_routes(self):
+        texts = self.host_texts()
+        texts['AGENTS.md'] = texts['AGENTS.md'].replace(f'[p]({docs.HOST_INDEX})\n', '')
+        self.assertTrue(any('must route to docs/hosts/codex.md' in e for e in docs.check_routes(texts)))
+
+    def test_host_index_records_cannot_supply_current_routes(self):
+        texts = self.host_texts()
+        texts[docs.HOST_INDEX] = ('# Hosts\n\n## Current State\n\nNo hosts.\n\n## Records\n\n'
+                                 '### 2026-11-16 Old hosts\n\n[Codex](codex.md)\n[Claude](claude.md)\n')
+        self.assertTrue(any('must route to docs/hosts/codex.md' in e for e in docs.check_routes(texts)))
+
+    def test_malformed_host_index_fails_closed(self):
+        texts = self.host_texts()
+        texts[docs.HOST_INDEX] = '[Codex](codex.md)\n[Claude](claude.md)\n'
+        self.assertTrue(any('must route to docs/hosts/codex.md' in e for e in docs.check_routes(texts)))
+
+    def test_host_index_cannot_replace_non_host_required_reading(self):
+        texts = self.host_texts()
+        policy = 'docs/documentation-policy.md'
+        texts['AGENTS.md'] = texts['AGENTS.md'].replace(f'[p]({policy})\n', '')
+        texts[docs.HOST_INDEX] = texts[docs.HOST_INDEX].replace('## Records', '[docs](../documentation-policy.md)\n\n## Records')
+        self.assertTrue(any(f'must route to {policy}' in e for e in docs.check_routes(texts)))
+
 if __name__ == '__main__':
     unittest.main()
